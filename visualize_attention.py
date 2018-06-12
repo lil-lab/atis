@@ -5,7 +5,6 @@ sequence.
 """
 import matplotlib.pyplot as plt
 import numpy as np
-from pylab import rcParams
 
 
 class AttentionGraph():
@@ -51,9 +50,6 @@ class AttentionGraph():
                              str(len(self.keys)) +
                              " but got probabilities of length " +
                              str(len(probabilities)))
-#        if sum(probabilities) != 1.0:
-#            raise ValueError("Probabilities sum to " +
-#                             str(sum(probabilities)) + "; not 1.0")
 
         self.generated_values.append(gen_value)
         self.attentions.append(probabilities)
@@ -76,38 +72,75 @@ class AttentionGraph():
         axes.set_yticks(range(len(self.generated_values)))
         axes.set_yticklabels(self.generated_values)
         axes.set_aspect(1, adjustable='box')
-#        axes.grid(b=True, color='w', linestyle='-',linewidth=2,which='minor')
-#        plt.minorticks_on()
-        plt.tick_params(axis='x',which='both',bottom='off',top='off')
-        plt.tick_params(axis='y',which='both',left='off',right='off')
+        plt.tick_params(axis='x', which='both', bottom='off', top='off')
+        plt.tick_params(axis='y', which='both', left='off', right='off')
 
         figure.savefig(filename)
 
     def render_as_latex(self, filename):
+        """Renders the attention graph as a LaTeX plot
+
+        Input:
+            filename (str): Name of the file to write to.
+        """
         ofile = open(filename, "w")
 
-        ofile.write("\\documentclass{article}\\usepackage[margin=0.5in]{geometry}\\usepackage{tikz}\\begin{document}\\begin{tikzpicture}[scale=0.25]\\begin{tiny}\\begin{scope}<+->;\n")
+        ofile.write(
+            "\\documentclass{article}\\usepackage[margin=0.5in]{geometry}\\usepackage{tikz}" \
+            + "\\begin{document}\\begin{tikzpicture}[scale=0.25]\\begin{tiny}\\begin{scope}<+->;\n")
         xstart = 0
         ystart = 0
         xend = len(self.keys)
         yend = len(self.generated_values)
 
-        ofile.write("\\draw[step=1cm,gray,very thin] (" + str(xstart) + "," + str(ystart) +") grid (" + str(xend) + ", " + str(yend) + ");\n")
+        ofile.write(
+            "\\draw[step=1cm,gray,very thin] (" +
+            str(xstart) +
+            "," +
+            str(ystart) +
+            ") grid (" +
+            str(xend) +
+            ", " +
+            str(yend) +
+            ");\n")
 
         for i, tok in enumerate(self.keys):
-            tok = tok.replace("_", "\_")
-            tok = tok.replace("#", "\#")
-            ofile.write("\\draw[gray, xshift=" + str(i) + ".5 cm] (0,0.3) -- (0,0) node[below,rotate=90,anchor=east] {" + tok + "};\n")
+            tok = tok.replace("_", r"\_")
+            tok = tok.replace("#", r"\#")
+            ofile.write(
+                "\\draw[gray, xshift=" +
+                str(i) +
+                ".5 cm] (0,0.3) -- (0,0) node[below,rotate=90,anchor=east] {" +
+                tok +
+                "};\n")
 
         for i, tok in enumerate(self.generated_values[::-1]):
-            tok = tok.replace("_", "\_")
-            tok = tok.replace("#", "\#")
-            ofile.write("\\draw[gray, yshift=" + str(i) + ".5 cm] (0.3,0) -- (0,0) node[left] {" + tok + "};\n")
+            tok = tok.replace("_", r"\_")
+            tok = tok.replace("#", r"\#")
+            ofile.write(
+                "\\draw[gray, yshift=" +
+                str(i) +
+                ".5 cm] (0.3,0) -- (0,0) node[left] {" +
+                tok +
+                "};\n")
 
         for i, gentok_atts in enumerate(self.attentions[::-1]):
             for j, val in enumerate(gentok_atts):
                 if val < 0.001:
                     val = 0
-                ofile.write("\\filldraw[thin,red,opacity=" + "%.2f" % val + "] (" + str(j) + ", " + str(i) + ") rectangle (" + str(j+1)+ "," + str(i+1) + ");\n")
+                ofile.write("\\filldraw[thin,red,opacity=" +
+                            "%.2f" %
+                            val +
+                            "] (" +
+                            str(j) +
+                            ", " +
+                            str(i) +
+                            ") rectangle (" +
+                            str(j +
+                                1) +
+                            "," +
+                            str(i +
+                                1) +
+                            ");\n")
 
-        ofile.write("\\end{scope}\\end{tiny}\\end{tikzpicture}{\end{document}")
+        ofile.write("\\end{scope}\\end{tiny}\\end{tikzpicture}{\\end{document}")
