@@ -2,7 +2,6 @@
 
 import dynet as dy
 import dynet_utils as du
-import params_util
 
 from vocabulary import DEL_TOK, UNK_TOK
 
@@ -10,6 +9,7 @@ from decoder import SequencePredictor
 from encoder import Encoder
 from embedder import Embedder
 from token_predictor import construct_token_predictor
+
 
 def get_token_indices(token, index_to_token):
     """ Maps from a gold token (string) to a list of indices.
@@ -36,8 +36,6 @@ def get_token_indices(token, index_to_token):
         return [index_to_token.index(UNK_TOK)]
 
 
-
-
 def flatten_utterances(utterances):
     """ Gets a flat sequence from a sequence of utterances.
 
@@ -56,6 +54,7 @@ def flatten_utterances(utterances):
 
     return sequence
 
+
 def encode_snippets_with_states(snippets, states):
     """ Encodes snippets by using previous query states instead.
 
@@ -69,11 +68,18 @@ def encode_snippets_with_states(snippets, states):
                                               states[snippet.endpos]]))
     return snippets
 
+
 class ATISModel():
     """ Sequence-to-sequence model for predicting a SQL query given an utterance
         and an interaction prefix.
     """
-    def __init__(self, params, input_vocabulary, output_vocabulary, anonymizer):
+
+    def __init__(
+            self,
+            params,
+            input_vocabulary,
+            output_vocabulary,
+            anonymizer):
         self.params = params
 
         self._pc = dy.ParameterCollection()
@@ -92,7 +98,6 @@ class ATISModel():
                                         vocabulary=output_vocabulary,
                                         anonymizer=anonymizer)
 
-
         # Create the encoder
         encoder_input_size = params.input_embedding_size
         if params.discourse_level_lstm:
@@ -107,10 +112,11 @@ class ATISModel():
         attention_key_size = params.encoder_state_size
         if params.state_positional_embeddings:
             attention_key_size += params.positional_embedding_size
-            self.positional_embedder = Embedder(self._pc,
-                                                params.positional_embedding_size,
-                                                name="positional-embedding",
-                                                num_tokens=params.maximum_utterances)
+            self.positional_embedder = Embedder(
+                self._pc,
+                params.positional_embedding_size,
+                name="positional-embedding",
+                num_tokens=params.maximum_utterances)
 
         # Create the discourse-level LSTM parameters
         if params.discourse_level_lstm:
@@ -125,11 +131,13 @@ class ATISModel():
             snippet_encoding_size = int(params.encoder_state_size / 2)
             final_snippet_size = params.encoder_state_size
             if params.snippet_age_embedding:
-                snippet_encoding_size -= int(params.snippet_age_embedding_size / 4)
-                self.snippet_age_embedder = Embedder(self._pc,
-                                                     params.snippet_age_embedding_size,
-                                                     name="snippet-age-embedding",
-                                                     num_tokens=params.max_snippet_age_embedding)
+                snippet_encoding_size -= int(
+                    params.snippet_age_embedding_size / 4)
+                self.snippet_age_embedder = Embedder(
+                    self._pc,
+                    params.snippet_age_embedding_size,
+                    name="snippet-age-embedding",
+                    num_tokens=params.max_snippet_age_embedding)
                 final_snippet_size = params.encoder_state_size \
                     + params.snippet_age_embedding_size / 2
 
@@ -144,13 +152,16 @@ class ATISModel():
                                                     final_snippet_size,
                                                     anonymizer)
 
-        self.decoder = SequencePredictor(params,
-                                         params.output_embedding_size + attention_key_size,
-                                         self.output_embedder,
-                                         self._pc,
-                                         token_predictor)
+        self.decoder = SequencePredictor(
+            params,
+            params.output_embedding_size +
+            attention_key_size,
+            self.output_embedder,
+            self._pc,
+            token_predictor)
 
-        self.trainer = dy.AdamTrainer(self._pc, alpha=params.initial_learning_rate)
+        self.trainer = dy.AdamTrainer(
+            self._pc, alpha=params.initial_learning_rate)
         self.dropout = 0.
 
     def _encode_snippets(self,
@@ -171,18 +182,16 @@ class ATISModel():
         assert len(endpoints) == 0 or max(endpoints) < len(previous_query)
 
         if previous_query and snippets:
-            _, previous_outputs = self.snippet_encoder(previous_query,
-                                                       self.output_embedder,
-                                                       dropout_amount=self.dropout)
+            _, previous_outputs = self.snippet_encoder(
+                previous_query, self.output_embedder, dropout_amount=self.dropout)
             assert len(previous_outputs) == len(previous_query)
 
             for snippet in snippets:
                 embedding = dy.concatenate([previous_outputs[snippet.startpos],
                                             previous_outputs[snippet.endpos]])
                 if self.params.snippet_age_embedding:
-                    embedding = dy.concatenate(
-                        [embedding, self.snippet_age_embedder(
-                            min(snippet.age, self.params.max_snippet_age_embedding - 1))])
+                    embedding = dy.concatenate([embedding, self.snippet_age_embedder(
+                        min(snippet.age, self.params.max_snippet_age_embedding - 1))])
                 snippet.set_embedding(embedding)
 
         return snippets
@@ -190,11 +199,10 @@ class ATISModel():
     def _initialize_discourse_states(self):
         discourse_state = self.initial_discourse_state
 
-        discourse_lstm_states = [lstm.initial_state([dy.zeroes((lstm.spec[2],)),
-                                                     dy.zeroes((lstm.spec[2],))])
+        discourse_lstm_states = [lstm.initial_state([dy.zeros((lstm.spec[2],)),
+                                                     dy.zeros((lstm.spec[2],))])
                                  for lstm in self.discourse_lstms]
         return discourse_state, discourse_lstm_states
-
 
     def _encode_with_discourse_lstm(self, utterances):
         """ Encodes the utterances using a discourse-level LSTM, instead of concatenating.
@@ -230,9 +238,8 @@ class ATISModel():
             return self._encode_with_discourse_lstm(utterances)
         else:
             flat_utterances = flatten_utterances(utterances)
-            final_state, hidden_states = self.utterance_encoder(flat_utterances,
-                                                                self.input_embedder,
-                                                                dropout_amount=self.dropout)
+            final_state, hidden_states = self.utterance_encoder(
+                flat_utterances, self.input_embedder, dropout_amount=self.dropout)
 
             states_no_delimiters = []
             start_utterance_index = 0
@@ -248,7 +255,8 @@ class ATISModel():
 
         start_index = 0
         for utterance in utterances:
-            grouped_states.append(hidden_states[start_index:start_index+len(utterance)])
+            grouped_states.append(
+                hidden_states[start_index:start_index + len(utterance)])
             start_index += len(utterance)
         assert len(hidden_states) == sum([len(seq) for seq in grouped_states])
 
@@ -258,9 +266,10 @@ class ATISModel():
         new_states = []
         flat_sequence = []
 
-        num_utterances_to_keep = min(self.params.maximum_utterances, len(utterances))
-        for i, (states, utterance) in enumerate(
-                zip(grouped_states[-num_utterances_to_keep:], utterances[-num_utterances_to_keep:])):
+        num_utterances_to_keep = min(
+            self.params.maximum_utterances, len(utterances))
+        for i, (states, utterance) in enumerate(zip(
+                grouped_states[-num_utterances_to_keep:], utterances[-num_utterances_to_keep:])):
             positional_sequence = []
             index = num_utterances_to_keep - i - 1
             for state in states:
@@ -276,6 +285,11 @@ class ATISModel():
         return new_states, flat_sequence
 
     def train_step(self, batch):
+        """Training step for a batch of examples.
+
+        Input:
+            batch (list of examples): Batch of examples used to update.
+        """
         dy.renew_cg(autobatching=True)
 
         losses = []
@@ -286,31 +300,33 @@ class ATISModel():
             example = batch.next()
 
             # First, encode the input sequences.
-            input_sequences = example.histories(self.params.maximum_utterances - 1) + [example.input_sequence()]
-            final_state, utterance_hidden_states = self._encode_input_sequences(input_sequences)
+            input_sequences = example.histories(
+                self.params.maximum_utterances - 1) + [example.input_sequence()]
+            final_state, utterance_hidden_states = self._encode_input_sequences(
+                input_sequences)
 
             # Add positional embeddings if appropriate
             if self.params.state_positional_embeddings:
-                utterance_hidden_states = self._add_positional_embeddings(utterance_hidden_states,
-                                                                          utterances)
-
+                utterance_hidden_states = self._add_positional_embeddings(
+                    utterance_hidden_states, input_sequences)
 
             # Encode the snippets
             snippets = []
             if self.params.use_snippets:
-                snippets = self._encode_snippets(previous_query, snippets)
+                snippets = self._encode_snippets(example.previous_query(), snippets)
 
             # Decode
             flat_seq = []
             for sequence in input_sequences:
                 flat_seq.extend(sequence)
-            decoder_results = self.decoder(final_state,
-                                           utterance_hidden_states,
-                                           self.params.train_maximum_sql_length,
-                                           snippets=snippets,
-                                           gold_sequence=example.gold_query(),
-                                           dropout_amount=self.dropout,
-                                           input_sequence=flat_seq)
+            decoder_results = self.decoder(
+                final_state,
+                utterance_hidden_states,
+                self.params.train_maximum_sql_length,
+                snippets=snippets,
+                gold_sequence=example.gold_query(),
+                dropout_amount=self.dropout,
+                input_sequence=flat_seq)
             all_scores = [
                 step.scores for step in decoder_results.predictions]
             all_alignments = [
@@ -330,41 +346,48 @@ class ATISModel():
 
         return loss_scalar
 
-    def eval_step(self, example, max_generation_length, feed_gold_query=False):
+    def eval_step(self, example, feed_gold_query=False):
+        """Evaluates the model on a specific example.
+
+        Inputs:
+            example (utterance example): Example to feed.
+            feed_gold_query (bool): Whether or not to token-feed the gold query.
+        """
         dy.renew_cg()
         # First, encode the input sequences.
-        input_sequences = example.histories(self.params.maximum_utterances - 1) + [example.input_sequence()]
-        final_state, utterance_hidden_states = self._encode_input_sequences(input_sequences)
+        input_sequences = example.histories(
+            self.params.maximum_utterances - 1) + [example.input_sequence()]
+        final_state, utterance_hidden_states = self._encode_input_sequences(
+            input_sequences)
 
         # Add positional embeddings if appropriate
         if self.params.state_positional_embeddings:
-            utterance_hidden_states = self._add_positional_embeddings(utterance_hidden_states,
-                                                                      utterances)
-
+            utterance_hidden_states = self._add_positional_embeddings(
+                utterance_hidden_states, input_sequences)
 
         # Encode the snippets
         snippets = []
         if self.params.use_snippets:
-            snippets = self._encode_snippets(previous_query, snippets)
+            snippets = self._encode_snippets(example.previous_query(), snippets)
 
         # Decode
         flat_seq = []
         for sequence in input_sequences:
             flat_seq.extend(sequence)
-        decoder_results = self.decoder(final_state,
-                                       utterance_hidden_states,
-                                       self.params.train_maximum_sql_length,
-                                       snippets=snippets,
-                                       gold_sequence=example.gold_query() if feed_gold_query else None,
-                                       dropout_amount=self.dropout,
-                                       input_sequence=flat_seq)
+        decoder_results = self.decoder(
+            final_state,
+            utterance_hidden_states,
+            self.params.train_maximum_sql_length,
+            snippets=snippets,
+            gold_sequence=example.gold_query() if feed_gold_query else None,
+            dropout_amount=self.dropout,
+            input_sequence=flat_seq)
 
-        
         all_scores = [
             step.scores for step in decoder_results.predictions]
         all_alignments = [
             step.aligned_tokens for step in decoder_results.predictions]
-        loss = 0
+        loss = dy.zeros(())
         if feed_gold_query:
             loss = du.compute_loss(example.gold_query(),
                                    all_scores,
@@ -405,4 +428,3 @@ class ATISModel():
         """
         self._pc.populate(filename)
         print("Loaded model from file " + filename)
-
