@@ -22,19 +22,33 @@ from pycrayon import CrayonClient
 
 from logger import Logger
 
-VALID_EVAL_METRICS = [Metrics.LOSS, Metrics.TOKEN_ACCURACY, Metrics.STRING_ACCURACY]
+VALID_EVAL_METRICS = [
+    Metrics.LOSS,
+    Metrics.TOKEN_ACCURACY,
+    Metrics.STRING_ACCURACY]
 TRAIN_EVAL_METRICS = [Metrics.LOSS, Metrics.TOKEN_ACCURACY]
-FINAL_EVAL_METRICS = [Metrics.STRING_ACCURACY, Metrics.TOKEN_ACCURACY, Metrics.CORRECT_TABLES,
-                      Metrics.STRICT_CORRECT_TABLES, Metrics.SYNTACTIC_QUERIES,
-                      Metrics.SEMANTIC_QUERIES]
+FINAL_EVAL_METRICS = [
+    Metrics.STRING_ACCURACY,
+    Metrics.TOKEN_ACCURACY,
+    Metrics.CORRECT_TABLES,
+    Metrics.STRICT_CORRECT_TABLES,
+    Metrics.SYNTACTIC_QUERIES,
+    Metrics.SEMANTIC_QUERIES]
+
 
 def send_slack_message(username, message, channel):
-    token = '' # TODO: put your Slack token here.
+    token = ''  # TODO: put your Slack token here.
     try:
         sc = SlackClient(token)
-        sc.api_call('chat.postMessage', channel=channel, text=message, username=username, icon_emoji=':robot_face:')
+        sc.api_call(
+            'chat.postMessage',
+            channel=channel,
+            text=message,
+            username=username,
+            icon_emoji=':robot_face:')
     except Exception as e:
         print("Couldn't send slack message with exception " + str(e))
+
 
 def train(model, data, params):
     """ Trains a model.
@@ -47,7 +61,7 @@ def train(model, data, params):
     # Get the training batches.
     log = Logger(os.path.join(params.logdir, params.logfile), "w")
     num_train_original = atis_data.num_utterances(data.train_data)
-    log.put("Original number of training utterances:\t" \
+    log.put("Original number of training utterances:\t"
             + str(num_train_original))
 
     eval_fn = evaluate_utterance_sample
@@ -78,7 +92,9 @@ def train(model, data, params):
     num_train_examples = sum([len(batch) for batch in train_batches])
     num_steps_per_epoch = len(train_batches)
 
-    log.put("Actual number of used training examples:\t" + str(num_train_examples))
+    log.put(
+        "Actual number of used training examples:\t" +
+        str(num_train_examples))
     log.put("(Shortened by output limit of " +
             str(maximum_output_length) +
             ")")
@@ -114,7 +130,9 @@ def train(model, data, params):
     while keep_training:
         log.put("Epoch:\t" + str(epochs))
         model.set_dropout(params.dropout_amount)
-        model.set_learning_rate(learning_rate_coefficient * params.initial_learning_rate)
+        model.set_learning_rate(
+            learning_rate_coefficient *
+            params.initial_learning_rate)
 
         # Run a training step.
         if params.interaction_level:
@@ -143,8 +161,14 @@ def train(model, data, params):
                                      metrics=TRAIN_EVAL_METRICS)[0]
 
         for name, value in train_eval_results.items():
-            log.put("train final gold-passing " + name.name + ":\t" + "%.2f" % value)
-            experiment.add_scalar_value("train_gold_" + name.name, value, step=epochs)
+            log.put(
+                "train final gold-passing " +
+                name.name +
+                ":\t" +
+                "%.2f" %
+                value)
+            experiment.add_scalar_value(
+                "train_gold_" + name.name, value, step=epochs)
 
         # Run an evaluation step on the validation set.
         valid_eval_results = eval_fn(valid_examples,
@@ -154,7 +178,8 @@ def train(model, data, params):
                                      metrics=VALID_EVAL_METRICS)[0]
         for name, value in valid_eval_results.items():
             log.put("valid gold-passing " + name.name + ":\t" + "%.2f" % value)
-            experiment.add_scalar_value("valid_gold_" + name.name, value, step=epochs)
+            experiment.add_scalar_value(
+                "valid_gold_" + name.name, value, step=epochs)
 
         valid_loss = valid_eval_results[Metrics.LOSS]
         valid_token_accuracy = valid_eval_results[Metrics.TOKEN_ACCURACY]
@@ -165,7 +190,10 @@ def train(model, data, params):
             log.put(
                 "learning rate coefficient:\t" +
                 str(learning_rate_coefficient))
-        experiment.add_scalar_value("learning_rate", learning_rate_coefficient, step=epochs)
+        experiment.add_scalar_value(
+            "learning_rate",
+            learning_rate_coefficient,
+            step=epochs)
         previous_epoch_loss = valid_loss
         saved = False
         if valid_token_accuracy > maximum_validation_accuracy:
@@ -181,13 +209,21 @@ def train(model, data, params):
             log.put("save file:\t" + str(last_save_file))
         if not saved and string_accuracy > maximum_string_accuracy:
             maximum_string_accuracy = string_accuracy
-            log.put("maximum string accuracy:\t" + str(maximum_string_accuracy))
+            log.put(
+                "maximum string accuracy:\t" +
+                str(maximum_string_accuracy))
             last_save_file = os.path.join(params.logdir, "save_" + str(epochs))
             model.save(last_save_file)
-        
-        send_slack_message(username=params.logdir,
-                           message="Epoch " + str(epochs) + ": " + str(string_accuracy) + " validation accuracy; countdown is " + str(countdown),
-                           channel="models")
+
+        send_slack_message(
+            username=params.logdir,
+            message="Epoch " +
+            str(epochs) +
+            ": " +
+            str(string_accuracy) +
+            " validation accuracy; countdown is " +
+            str(countdown),
+            channel="models")
 
         if countdown <= 0:
             keep_training = False
@@ -209,12 +245,14 @@ def train(model, data, params):
 
     return last_save_file
 
+
 def evaluate(model, data, params, last_save_file):
     if last_save_file:
         model.load(last_save_file)
     else:
         if not params.save_file:
-            raise ValueError("Must provide a save file name if not training first.")
+            raise ValueError(
+                "Must provide a save file name if not training first.")
         model.load(params.save_file)
 
     split = None
@@ -241,7 +279,7 @@ def evaluate(model, data, params, last_save_file):
 
         examples = data.get_all_interactions(split)
         if params.interaction_level:
-            results, _ = evaluate_interaction_sample( \
+            results, _ = evaluate_interaction_sample(
                 examples,
                 model,
                 name=full_name,
@@ -255,7 +293,7 @@ def evaluate(model, data, params, last_save_file):
                 write_results=True,
                 use_gpu=True)
         else:
-            results, _ = evaluate_using_predicted_queries( \
+            results, _ = evaluate_using_predicted_queries(
                 params,
                 examples,
                 model,
@@ -268,7 +306,7 @@ def evaluate(model, data, params, last_save_file):
                 database_timeout=params.database_timeout)
     else:
         examples = data.get_all_utterances(split)
-        results, _ = evaluate_utterance_sample( \
+        results, _ = evaluate_utterance_sample(
             examples,
             model,
             name=full_name,
@@ -281,9 +319,11 @@ def evaluate(model, data, params, last_save_file):
             database_timeout=params.database_timeout,
             write_results=True)
 
+
 def evaluate_attention(model, data, params, last_save_file):
     if not params.save_file:
-        raise ValueError("Must provide a save file name for evaluating attention.")
+        raise ValueError(
+            "Must provide a save file name for evaluating attention.")
     model.load(last_save_file)
 
     all_data = data.get_all_interactions(data.dev_data)
@@ -296,7 +336,8 @@ def evaluate_attention(model, data, params, last_save_file):
     data = [interaction]
 
     # Do analysis on the random example.
-    ignore_with_gpu = [line.strip() for line in open("cpu_full_interactions.txt").readlines()]
+    ignore_with_gpu = [line.strip() for line in open(
+        "cpu_full_interactions.txt").readlines()]
     for interaction in data:
         if interaction.identifier in ignore_with_gpu:
             continue
@@ -306,17 +347,17 @@ def evaluate_attention(model, data, params, last_save_file):
         if os.path.exists(full_path):
             continue
         if params.use_predicted_queries:
-            predictions = model.predict_with_predicted_queries(interaction,
-                                                               params.eval_maximum_sql_length,
-                                                               syntax_restrict=True)
+            predictions = model.predict_with_predicted_queries(
+                interaction, params.eval_maximum_sql_length, syntax_restrict=True)
         else:
-            predictions = model.predict_with_gold_queries(interaction,
-                                                          params.eval_maximum_sql_length)
+            predictions = model.predict_with_gold_queries(
+                interaction, params.eval_maximum_sql_length)
 
         prev_correct = True
         for i, prediction in enumerate(predictions):
             item = interaction.gold_utterances()[i]
-            input_sequence = [token for utterance in item.histories(params.maximum_utterances - 1) + [item.input_sequence()] for token in utterance]
+            input_sequence = [token for utterance in item.histories(
+                params.maximum_utterances - 1) + [item.input_sequence()] for token in utterance]
             attention_graph = AttentionGraph(input_sequence)
 
             if params.use_predicted_queries:
@@ -326,10 +367,13 @@ def evaluate_attention(model, data, params, last_save_file):
                 gold_query = item.original_gold_query()
 
             output_sequence = prediction[0]
-            attentions = [result.attention_results for result in prediction[-1].predictions]
+            attentions = [
+                result.attention_results for result in prediction[-1].predictions]
 
             for token, attention in zip(output_sequence, attentions):
-                attention_graph.add_attention(token, np.transpose(attention.distribution.value())[0])
+                attention_graph.add_attention(
+                    token, np.transpose(
+                        attention.distribution.value())[0])
             suffix = identifier + "_attention_" + str(i) + ".tex"
             filename = os.path.join(full_path, suffix)
 
@@ -337,19 +381,27 @@ def evaluate_attention(model, data, params, last_save_file):
             if not os.path.exists(full_path):
                 os.mkdir(full_path)
             attention_graph.render_as_latex(filename)
-            os.system("cd " + str(full_path) + "; pdflatex " + suffix + "; rm *.log; rm *.aux")
+            os.system(
+                "cd " +
+                str(full_path) +
+                "; pdflatex " +
+                suffix +
+                "; rm *.log; rm *.aux")
             print("rendered " + str(filename))
             prev_correct = flat_sequence == gold_query
+
 
 def interact(model, params, anonymizer, last_save_file=""):
     if last_save_file:
         model.load(last_save_file)
     else:
         if not params.save_file:
-            raise ValueError("Must provide a save file name if not training first.")
+            raise ValueError(
+                "Must provide a save file name if not training first.")
         model.load(params.save_file)
 
     model.interactive_prediction(anonymizer)
+
 
 def main():
     """Main function that trains and/or evaluates a model."""
@@ -358,14 +410,14 @@ def main():
     # Prepare the dataset into the proper form.
     data = atis_data.ATISDataset(params)
 
-
     # Construct the model object.
     model_type = InteractionATISModel if params.interaction_level else ATISModel
 
-    model = model_type(params,
-                       data.input_vocabulary,
-                       data.output_vocabulary,
-                       data.anonymizer if params.anonymize and params.anonymization_scoring else None)
+    model = model_type(
+        params,
+        data.input_vocabulary,
+        data.output_vocabulary,
+        data.anonymizer if params.anonymize and params.anonymization_scoring else None)
 
     last_save_file = ""
 
@@ -377,6 +429,7 @@ def main():
         interact(model, params, data.anonymizer, last_save_file)
     if params.attention:
         evaluate_attention(model, data, params, params.save_file)
+
 
 if __name__ == "__main__":
     main()
