@@ -1,3 +1,4 @@
+"""Contains class and methods for storing and computing a vocabulary from text."""
 import operator
 import os
 import pickle
@@ -9,7 +10,26 @@ DEL_TOK = ";"
 
 
 class Vocabulary:
+    """Vocabulary class: stores information about words in a corpus.
+
+    Members:
+        functional_types (list of str): Functional vocabulary words, such as EOS.
+        max_size (int): The maximum size of vocabulary to keep.
+        min_occur (int): The minimum number of times a word should occur to keep it.
+        id_to_token (list of str): Ordered list of word types.
+        token_to_id (dict str->int): Maps from each unique word type to its index.
+    """
     def get_vocab(self, sequences, ignore_fn):
+        """Gets vocabulary from a list of sequences.
+
+        Inputs:
+            sequences (list of list of str): Sequences from which to compute the vocabulary.
+            ignore_fn (lambda str: bool): Function used to tell whether to ignore a
+                token during computation of the vocabulary.
+
+        Returns:
+            list of str, representing the unique word types in the vocabulary.
+        """
         type_counts = {}
 
         for sequence in sequences:
@@ -41,7 +61,7 @@ class Vocabulary:
     def __init__(self,
                  sequences,
                  filename,
-                 functional_types=[],
+                 functional_types=None,
                  max_size=-1,
                  min_occur=0,
                  ignore_fn=lambda x: False):
@@ -54,24 +74,25 @@ class Vocabulary:
         self.id_to_token = []
         self.token_to_id = {}
 
-        for i in range(len(vocab)):
-            self.id_to_token.append(vocab[i])
-            self.token_to_id[vocab[i]] = i
+        for i, word_type in enumerate(vocab):
+            self.id_to_token.append(word_type)
+            self.token_to_id[word_type] = i
 
         # Load the previous vocab, if it exists.
         if os.path.exists(filename):
-            f = open(filename, 'rb')
-            loaded_vocab = pickle.load(f)
-            f.close()
+            infile = open(filename, 'rb')
+            loaded_vocab = pickle.load(infile)
+            infile.close()
 
             print("Loaded vocabulary from " + str(filename))
-            if loaded_vocab.id_to_token != self.id_to_token or loaded_vocab.token_to_id != self.token_to_id:
+            if loaded_vocab.id_to_token != self.id_to_token \
+                or loaded_vocab.token_to_id != self.token_to_id:
                 print("Loaded vocabulary is different than generated vocabulary.")
         else:
             print("Writing vocabulary to " + str(filename))
-            f = open(filename, 'wb')
-            pickle.dump(self, f)
-            f.close()
+            outfile = open(filename, 'wb')
+            pickle.dump(self, outfile)
+            outfile.close()
 
     def __len__(self):
         return len(self.id_to_token)
