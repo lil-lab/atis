@@ -12,14 +12,15 @@ SEPARATOR = "#"
 
 def timeval(string):
     """Returns the numeric version of a time.
-    
+
     Inputs:
         string (str): String representing a time.
 
     Returns:
-        String representing the absolute time. 
+        String representing the absolute time.
     """
-    if string.endswith("am") or string.endswith("pm") and string[:-2].isdigit():
+    if string.endswith("am") or string.endswith(
+            "pm") and string[:-2].isdigit():
         numval = int(string[:-2])
         if len(string) == 3 or len(string) == 4:
             numval *= 100
@@ -46,6 +47,16 @@ def is_time(string):
 
 
 def deanonymize(sequence, ent_dict, key):
+    """Deanonymizes a sequence.
+
+    Inputs:
+        sequence (list of str): List of tokens to deanonymize.
+        ent_dict (dict str->(dict str->str)): Maps from tokens to the entity dictionary.
+        key (str): The key to use, in this case either natural language or SQL.
+
+    Returns:
+        Deanonymized sequence of tokens.
+    """
     new_sequence = []
     for token in sequence:
         if token in ent_dict:
@@ -57,6 +68,17 @@ def deanonymize(sequence, ent_dict, key):
 
 
 class Anonymizer:
+    """Anonymization class for keeping track of entities in this domain and
+       scripts for anonymizing/deanonymizing.
+
+    Members:
+        anonymization_map (list of dict (str->str)): Containing entities from
+            the anonymization file.
+        entity_types (list of str): All entities in the anonymization file.
+        keys (set of str): Possible keys (types of text handled); in this case it should be
+            one for natural language and another for SQL.
+        entity_set (set of str): entity_types as a set.
+    """
     def __init__(self, filename):
         self.anonymization_map = []
         self.entity_types = []
@@ -68,7 +90,7 @@ class Anonymizer:
                 if key != "type":
                     self.keys.add(key)
             self.anonymization_map.append(pair)
-            if not pair["type"] in self.entity_types:
+            if pair["type"] not in self.entity_types:
                 self.entity_types.append(pair["type"])
 
         self.entity_types.append(ENTITY_NAME)
@@ -78,6 +100,14 @@ class Anonymizer:
         self.entity_set = set(self.entity_types)
 
     def get_entity_type_from_token(self, token):
+        """Gets the type of an entity given an anonymized token.
+
+        Inputs:
+            token (str): The entity token.
+
+        Returns:
+            str, representing the type of the entity.
+        """
         # these are in the pattern NAME:#, so just strip the thing after the
         # colon
         colon_loc = token.index(SEPARATOR)
@@ -87,104 +117,47 @@ class Anonymizer:
         return entity_type
 
     def is_anon_tok(self, token):
+        """Returns whether a token is an anonymized token or not.
+
+        Input:
+            token (str): The token to check.
+
+        Returns:
+            bool, whether the token is an anonymized token.
+        """
         return token.split(SEPARATOR)[0] in self.entity_set
 
     def get_anon_id(self, token):
+        """Gets the entity index (unique ID) for a token.
+
+        Input:
+            token (str): The token to get the index from.
+
+        Returns:
+            int, the token ID if it is an anonymized token; otherwise -1.
+        """
         if self.is_anon_tok(token):
             return self.entity_types.index(token.split(SEPARATOR)[0])
         else:
             return -1
-
-    def extract_dates(
-            self,
-            anonymized_sequence,
-            key,
-            type_counts,
-            tok_to_ent_dict):
-        all_values = [val[key][0] for val in self.anonymization_map]
-
-        years = [val[key][0]
-                 for val in self.anonymization_map if val["type"] == "YEAR"]
-        months = [val[key][0]
-                  for val in self.anonymization_map if val["type"] == "MONTH_NUMBER"]
-        dates = [val[key]
-                 for val in self.anonymization_map if val["type"] == "DAY_NUMBER"]
-
-        new_seq = []
-        # First detect dates: (year month day)
-        i = 0
-        while i < len(anonymized_sequence):
-            if i + 2 < len(anonymized_sequence) and anonymized_sequence[i] in years and \
-                    anonymized_sequence[i + 1] in months and \
-                    [anonymized_sequence[i + 2]] in dates:
-
-                year = anonymized_sequence[i]
-                month = anonymized_sequence[i + 1]
-
-                month_number = ""
-                for pair in self.anonymization_map:
-                    if pair[key] == [month]:
-                        month_number = pair["sql"][0]
-                        break
-
-                new_token = DATE_NAME + SEPARATOR + str(type_counts[DATE_NAME])
-                new_pair = {"type": DATE_NAME}
-
-                # Also handle the case where the day has two tokens
-                if i + 3 < len(anonymized_sequence) and [anonymized_sequence[i + 2],
-                                                         anonymized_sequence[i + 3]] in dates:
-                    day = [anonymized_sequence[i + 2],
-                           anonymized_sequence[i + 3]]
-                    new_pair[key] = anonymized_sequence[i:i + 4]
-                    i += 4
-                else:
-                    day = [anonymized_sequence[i + 2]]
-                    new_pair[key] = anonymized_sequence[i:i + 3]
-                    i += 3
-
-                # check that the date isn't already in the map
-                found_key = ""
-                for name, pair in tok_to_ent_dict.items():
-                    if pair[key] == new_pair[key]:
-                        found_key = name
-
-                if found_key:
-                    new_seq.append(found_key)
-                else:
-                    day_number = ""
-                    for pair in self.anonymization_map:
-                        if pair[key] == day:
-                            day_number = pair["sql"]
-                            break
-                    assert day_number, "Could not find " + \
-                        str(day) + " in anonymization map"
-                    new_pair["sql"] = ["date_day.year",
-                                       "=",
-                                       year,
-                                       "AND",
-                                       "date_day.month_number",
-                                       "=",
-                                       month_number,
-                                       "AND",
-                                       "date_day.day_number",
-                                       "=",
-                                       day_number[0]]
-
-                    new_seq.append(new_token)
-                    type_counts[DATE_NAME] += 1
-
-                    tok_to_ent_dict[new_token] = new_pair
-            else:
-                new_seq.append(anonymized_sequence[i])
-                i += 1
-
-        return new_seq
 
     def anonymize(self,
                   sequence,
                   tok_to_entity_dict,
                   key,
                   add_new_anon_toks=False):
+        """Anonymizes a sequence.
+
+        Inputs:
+            sequence (list of str): Sequence to anonymize.
+            tok_to_entity_dict (dict): Existing dictionary mapping from anonymized
+                tokens to entities.
+            key (str): Which kind of text this is (natural language or SQL)
+            add_new_anon_toks (bool): Whether to add new entities to tok_to_entity_dict.
+
+        Returns:
+            list of str, the anonymized sequence.
+        """
         # Sort the token-tok-entity dict by the length of the modality.
         sorted_dict = sorted(tok_to_entity_dict.items(),
                              key=lambda k: len(k[1][key]))[::-1]
