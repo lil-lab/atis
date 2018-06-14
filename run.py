@@ -1,26 +1,23 @@
 """Contains a main function for training and/or evaluating a model."""
 
-from parse_args import interpret_args
-import atis_batch
-import atis_data
-import json
-import numpy as np
 import os
-import params_util
-import random
-import sys
-import tokenizers
-from slackclient import SlackClient
-from utterance import ANON_INPUT_KEY
-from visualize_attention import AttentionGraph
 
+import numpy as np
+
+from pycrayon import CrayonClient
+from slackclient import SlackClient
+from slackclient.exceptions import SlackClientError
+
+from parse_args import interpret_args
+
+import atis_data
 from interaction_model import InteractionATISModel
+from logger import Logger
 from model import ATISModel
 from model_util import Metrics, evaluate_utterance_sample, evaluate_interaction_sample, \
     train_epoch_with_utterances, train_epoch_with_interactions, evaluate_using_predicted_queries
-from pycrayon import CrayonClient
+from visualize_attention import AttentionGraph
 
-from logger import Logger
 
 VALID_EVAL_METRICS = [
     Metrics.LOSS,
@@ -37,17 +34,24 @@ FINAL_EVAL_METRICS = [
 
 
 def send_slack_message(username, message, channel):
+    """Sends a message to your Slack channel.
+
+    Input:
+        username (str): Username to send from.
+        message (str): The message to send.
+        channel (str): Channel to send the message to.
+    """
     token = ''  # TODO: put your Slack token here.
     try:
-        sc = SlackClient(token)
-        sc.api_call(
+        client = SlackClient(token)
+        client.api_call(
             'chat.postMessage',
             channel=channel,
             text=message,
             username=username,
             icon_emoji=':robot_face:')
-    except Exception as e:
-        print("Couldn't send slack message with exception " + str(e))
+    except SlackClientError as error:
+        print("Couldn't send slack message with exception " + str(error))
 
 
 def train(model, data, params):
@@ -233,8 +237,6 @@ def train(model, data, params):
         experiment.add_scalar_value("countdown", countdown, step=epochs)
         log.put("")
 
-        previous_loss = valid_loss
-
         epochs += 1
 
     log.put("Finished training!")
@@ -247,6 +249,14 @@ def train(model, data, params):
 
 
 def evaluate(model, data, params, last_save_file):
+    """Evaluates a pretrained model on a dataset.
+
+    Inputs:
+        model (ATISModel): Model class.
+        data (ATISData): All of the data.
+        params (namespace): Parameters for the model.
+        last_save_file (str): Location where the model save file is.
+    """
     if last_save_file:
         model.load(last_save_file)
     else:
@@ -276,10 +286,9 @@ def evaluate(model, data, params, last_save_file):
     full_name = os.path.join(params.logdir, filename) + params.results_note
 
     if params.interaction_level or params.use_predicted_queries:
-
         examples = data.get_all_interactions(split)
         if params.interaction_level:
-            results, _ = evaluate_interaction_sample(
+            evaluate_interaction_sample(
                 examples,
                 model,
                 name=full_name,
@@ -293,20 +302,18 @@ def evaluate(model, data, params, last_save_file):
                 write_results=True,
                 use_gpu=True)
         else:
-            results, _ = evaluate_using_predicted_queries(
-                params,
+            evaluate_using_predicted_queries(
                 examples,
                 model,
                 name=full_name,
                 metrics=FINAL_EVAL_METRICS,
                 total_num=atis_data.num_utterances(split),
-                max_generation_length=params.eval_maximum_sql_length,
                 database_username=params.database_username,
                 database_password=params.database_password,
                 database_timeout=params.database_timeout)
     else:
         examples = data.get_all_utterances(split)
-        results, _ = evaluate_utterance_sample(
+        evaluate_utterance_sample(
             examples,
             model,
             name=full_name,
@@ -321,6 +328,14 @@ def evaluate(model, data, params, last_save_file):
 
 
 def evaluate_attention(model, data, params, last_save_file):
+    """Evaluates attention distributions during generation.
+
+    Inputs:
+        model (ATISModel): The model.
+        data (ATISData): Data to evaluate.
+        params (namespace): Parameters for the run.
+        last_save_file (str): The save file to load from.
+    """
     if not params.save_file:
         raise ValueError(
             "Must provide a save file name for evaluating attention.")
@@ -333,7 +348,7 @@ def evaluate_attention(model, data, params, last_save_file):
             found_one = interaction
             break
 
-    data = [interaction]
+    data = [found_one]
 
     # Do analysis on the random example.
     ignore_with_gpu = [line.strip() for line in open(
@@ -353,7 +368,6 @@ def evaluate_attention(model, data, params, last_save_file):
             predictions = model.predict_with_gold_queries(
                 interaction, params.eval_maximum_sql_length)
 
-        prev_correct = True
         for i, prediction in enumerate(predictions):
             item = interaction.gold_utterances()[i]
             input_sequence = [token for utterance in item.histories(
@@ -362,9 +376,6 @@ def evaluate_attention(model, data, params, last_save_file):
 
             if params.use_predicted_queries:
                 item = interaction.processed_utterances[i]
-                gold_query = interaction.interaction.utterances[i].original_gold_query
-            else:
-                gold_query = item.original_gold_query()
 
             output_sequence = prediction[0]
             attentions = [
@@ -377,7 +388,6 @@ def evaluate_attention(model, data, params, last_save_file):
             suffix = identifier + "_attention_" + str(i) + ".tex"
             filename = os.path.join(full_path, suffix)
 
-            flat_sequence = item.flatten_sequence(output_sequence)
             if not os.path.exists(full_path):
                 os.mkdir(full_path)
             attention_graph.render_as_latex(filename)
@@ -388,10 +398,17 @@ def evaluate_attention(model, data, params, last_save_file):
                 suffix +
                 "; rm *.log; rm *.aux")
             print("rendered " + str(filename))
-            prev_correct = flat_sequence == gold_query
 
 
 def interact(model, params, anonymizer, last_save_file=""):
+    """Interactive command line tool.
+
+    Inputs:
+        model (ATISModel): The model to interact with.
+        params (namespace): Parameters for the run.
+        anonymizer (Anonymizer): Class for anonymizing user input.
+        last_save_file (str): The save file to load from.
+    """
     if last_save_file:
         model.load(last_save_file)
     else:
