@@ -2,15 +2,15 @@
 
 from enum import Enum
 
-import json
-import metrics as metrics_handler
-import progressbar
 import random
-import sql_util
 import sys
-import time
+
+import progressbar
 
 import dynet_utils as du
+import metrics as metrics_handler
+import sql_util
+
 
 class Metrics(Enum):
     """Definitions of simple metrics to compute."""
@@ -21,6 +21,7 @@ class Metrics(Enum):
     STRICT_CORRECT_TABLES = 5
     SEMANTIC_QUERIES = 6
     SYNTACTIC_QUERIES = 7
+
 
 def get_progressbar(name, size):
     """Gets a progress bar object given a name and the total size.
@@ -95,7 +96,8 @@ def train_epoch_with_interactions(interaction_batches,
         if interaction.identifier == "raw/atis2/12-1.1/ATIS2/TEXT/TEST/NOV92/770/5":
             continue
         try:
-            batch_loss = model.train(interaction, params.train_maximum_sql_length)
+            batch_loss = model.train(
+                interaction, params.train_maximum_sql_length)
         except RuntimeError as exception:
             print("Failed on interaction: " + str(interaction.identifier))
             print(exception)
@@ -118,7 +120,7 @@ def update_sums(metrics,
                 gold_query,
                 original_gold_query,
                 gold_forcing=False,
-                loss=float('inf'),
+                loss=None,
                 token_accuracy=0.,
                 database_username="",
                 database_password="",
@@ -185,15 +187,6 @@ def construct_averages(metrics_sums, total_num):
     return metrics_averages
 
 
-def eval_prediction(fileptr, identifier, probability, input_seq, ):
-    pred_obj = {}
-    pred_obj["identifier"] = identifier
-    pred_obj["probability"] = probability
-    pred_obj["input_seq"] = input_seq,
-
-    fileptr.write(json.dumps(pred_obj) + "\n")
-
-
 def evaluate_utterance_sample(sample,
                               model,
                               max_generation_length,
@@ -205,6 +198,21 @@ def evaluate_utterance_sample(sample,
                               database_password="",
                               database_timeout=0,
                               write_results=False):
+    """Evaluates a sample of utterance examples.
+
+    Inputs:
+        sample (list of Utterance): Examples to evaluate.
+        model (ATISModel): Model to predict with.
+        max_generation_length (int): Maximum length to generate.
+        name (str): Name to log with.
+        gold_forcing (bool): Whether to force the gold tokens during decoding.
+        metrics (list of Metric): Metrics to evaluate with.
+        total_num (int): Number to divide by when reporting results.
+        database_username (str): Username to use for executing queries.
+        database_password (str): Password to use when executing queries.
+        database_timeout (float): Timeout on queries when executing.
+        write_results (bool): Whether to write the results to a file.
+    """
     assert metrics
 
     if total_num < 0:
@@ -221,12 +229,14 @@ def evaluate_utterance_sample(sample,
 
     predictions = []
     for i, item in enumerate(sample):
-        results, loss, predicted_seq = model.eval_step(item, max_generation_length, feed_gold_query=gold_forcing)
+        _, loss, predicted_seq = model.eval_step(
+            item, max_generation_length, feed_gold_query=gold_forcing)
         loss = loss / len(item.gold_query())
         predictions.append(predicted_seq)
 
         flat_sequence = item.flatten_sequence(predicted_seq)
-        token_accuracy = du.per_token_accuracy(item.gold_query(), predicted_seq) 
+        token_accuracy = du.per_token_accuracy(
+            item.gold_query(), predicted_seq)
 
         if write_results:
             metrics_handler.write_prediction(
@@ -271,13 +281,12 @@ def evaluate_interaction_sample(sample,
                                 max_generation_length,
                                 name="",
                                 gold_forcing=False,
-                                metrics=[],
+                                metrics=None,
                                 total_num=-1,
                                 database_username="",
                                 database_password="",
                                 database_timeout=0,
                                 use_predicted_queries=False,
-                                snippet_keep_age=1,
                                 write_results=False,
                                 use_gpu=False):
     """ Evaluates a sample of interactions. """
@@ -290,7 +299,8 @@ def evaluate_interaction_sample(sample,
     progbar.start()
 
     num_utterances = 0
-    ignore_with_gpu = [line.strip() for line in open("cpu_full_interactions.txt").readlines()]
+    ignore_with_gpu = [line.strip() for line in open(
+        "cpu_full_interactions.txt").readlines()]
     predictions = []
 
     use_gpu = not ("--no_gpus" in sys.argv or "--no_gpus=1" in sys.argv)
@@ -309,20 +319,20 @@ def evaluate_interaction_sample(sample,
                     interaction,
                     max_generation_length,
                     feed_gold_query=gold_forcing)
-        except RuntimeError as e:
+        except RuntimeError as exception:
             print("Failed on interaction: " + str(interaction.identifier))
-            print(e)
+            print(exception)
             print("\n\n")
             exit()
 
         predictions.extend(example_preds)
 
-        assert len(example_preds) == len(interaction.interaction.utterances) or not example_preds
+        assert len(example_preds) == len(
+            interaction.interaction.utterances) or not example_preds
         for j, pred in enumerate(example_preds):
             num_utterances += 1
 
             sequence, loss, token_accuracy, _, decoder_results = pred
-
 
             if use_predicted_queries:
                 item = interaction.processed_utterances[j]
@@ -391,12 +401,11 @@ def evaluate_using_predicted_queries(sample,
                                      model,
                                      name="",
                                      gold_forcing=False,
-                                     metrics=[],
+                                     metrics=None,
                                      total_num=-1,
                                      database_username="",
                                      database_password="",
                                      database_timeout=0,
-                                     use_predicted_queries=False,
                                      snippet_keep_age=1):
     predictions_file = open(name + "_predictions.json", "w")
     print("Predicting with file " + str(name + "_predictions.json"))
@@ -415,10 +424,8 @@ def evaluate_using_predicted_queries(sample,
         while not item.done():
             utterance = item.next_utterance(snippet_keep_age)
 
-            start_time = time.time()
             predicted_sequence, loss, _, probability = model.eval_step(
                 utterance)
-            inference_time = time.time() - start_time
             int_predictions.append((utterance, predicted_sequence))
 
             flat_sequence = utterance.flatten_sequence(predicted_sequence)
@@ -457,8 +464,7 @@ def evaluate_using_predicted_queries(sample,
                 index_in_interaction=utterance.index,
                 database_username=database_username,
                 database_password=database_password,
-                database_timeout=database_timeout,
-                inference_time=inference_time)
+                database_timeout=database_timeout)
 
             update_sums(metrics,
                         metrics_sums,
