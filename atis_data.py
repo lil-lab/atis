@@ -1,10 +1,10 @@
 """ Utility functions for loading and processing ATIS data."""
-import anonymization as anon
-import atis_batch
-import copy
-import dataset_split as ds
 import os
 import random
+
+import anonymization as anon
+import atis_batch
+import dataset_split as ds
 
 from interaction import load_function
 from entities import NLtoSQLDict
@@ -94,7 +94,15 @@ class ATISDataset():
                              max_input_length=float('inf'),
                              max_output_length=float('inf'),
                              sorted_by_length=False):
+        """Gets all interactions in a dataset that fit the criteria.
 
+        Inputs:
+            dataset (ATISDatasetSplit): The dataset to use.
+            max_interaction_length (int): Maximum interaction length to keep.
+            max_input_length (int): Maximum input sequence length to keep.
+            max_output_length (int): Maximum output sequence length to keep.
+            sorted_by_length (bool): Whether to sort the examples by interaction length.
+        """
         ints = [
             atis_batch.InteractionItem(
                 interaction,
@@ -114,6 +122,14 @@ class ATISDataset():
                               max_input_length=float('inf'),
                               max_output_length=float('inf'),
                               randomize=True):
+        """Gets batches of utterances in the data.
+
+        Inputs:
+            batch_size (int): Batch size to use.
+            max_input_length (int): Maximum length of input to keep.
+            max_output_length (int): Maximum length of output to use.
+            randomize (bool): Whether to randomize the ordering.
+        """
         # First, get all interactions and the positions of the utterances that are
         # possible in them.
         items = self.get_all_utterances(self.train_data,
@@ -142,6 +158,15 @@ class ATISDataset():
                                 max_input_length=float('inf'),
                                 max_output_length=float('inf'),
                                 randomize=True):
+        """Gets batches of interactions in the data.
+
+        Inputs:
+            batch_size (int): Batch size to use.
+            max_interaction_length (int): Maximum length of interaction to keep
+            max_input_length (int): Maximum length of input to keep.
+            max_output_length (int): Maximum length of output to keep.
+            randomize (bool): Whether to randomize the ordering.
+        """
         items = self.get_all_interactions(self.train_data,
                                           max_interaction_length,
                                           max_input_length,
@@ -168,6 +193,13 @@ class ATISDataset():
                               num_samples,
                               max_input_length=float('inf'),
                               max_output_length=float('inf')):
+        """Gets a random selection of utterances in the data.
+
+        Inputs:
+            num_samples (bool): Number of random utterances to get.
+            max_input_length (int): Limit of input length.
+            max_output_length (int): Limit on output length.
+        """
         items = self.get_all_utterances(self.train_data,
                                         max_input_length,
                                         max_output_length)
@@ -179,6 +211,14 @@ class ATISDataset():
                                 max_interaction_length=float('inf'),
                                 max_input_length=float('inf'),
                                 max_output_length=float('inf')):
+
+        """Gets a random selection of interactions in the data.
+
+        Inputs:
+            num_samples (bool): Number of random interactions to get.
+            max_input_length (int): Limit of input length.
+            max_output_length (int): Limit on output length.
+        """
         items = self.get_all_interactions(self.train_data,
                                           max_interaction_length,
                                           max_input_length,
@@ -188,4 +228,5 @@ class ATISDataset():
 
 
 def num_utterances(dataset):
+    """Returns the total number of utterances in the dataset."""
     return sum([len(interaction) for interaction in dataset.examples])

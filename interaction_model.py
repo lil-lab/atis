@@ -11,7 +11,6 @@ from model import ATISModel, encode_snippets_with_states, get_token_indices
 from utterance import ANON_INPUT_KEY
 
 
-
 LIMITED_INTERACTIONS = {"raw/atis2/12-1.1/ATIS2/TEXT/TRAIN/SRI/QS0/1": 22,
                         "raw/atis3/17-1.1/ATIS3/SP_TRN/MIT/8K7/5": 14,
                         "raw/atis2/12-1.1/ATIS2/TEXT/TEST/NOV92/770/5": -1}
@@ -151,7 +150,6 @@ class InteractionATISModel(ATISModel):
 
             input_sequence = utterance.input_sequence()
 
-            # TODO: make sure these are all of the correct age
             available_snippets = utterance.snippets()
             previous_query = utterance.previous_query()
 
@@ -179,7 +177,9 @@ class InteractionATISModel(ATISModel):
                 final_utterance_state[1][0], discourse_lstm_states, self.dropout)
 
             flat_sequence = []
-            num_utterances_to_keep = min(self.params.maximum_utterances, len(input_sequences))
+            num_utterances_to_keep = min(
+                self.params.maximum_utterances,
+                len(input_sequences))
             for utt in input_sequences[-num_utterances_to_keep:]:
                 flat_sequence.extend(utt)
 
@@ -190,7 +190,8 @@ class InteractionATISModel(ATISModel):
             snippets = None
             if self.params.use_snippets:
                 if self.params.previous_decoder_snippet_encoding:
-                    snippets = encode_snippets_with_states(available_snippets, decoder_states)
+                    snippets = encode_snippets_with_states(
+                        available_snippets, decoder_states)
                 else:
                     snippets = self._encode_snippets(
                         previous_query, available_snippets)
@@ -233,10 +234,13 @@ class InteractionATISModel(ATISModel):
 
         return loss_scalar
 
-    def predict_with_predicted_queries(self, interaction, max_generation_length, syntax_restrict=True):
+    def predict_with_predicted_queries(
+            self,
+            interaction,
+            max_generation_length,
+            syntax_restrict=True):
         """ Predicts an interaction, using the predicted queries to get snippets."""
         assert self.params.discourse_level_lstm
-
 
         dy.renew_cg()
 
@@ -250,10 +254,8 @@ class InteractionATISModel(ATISModel):
 
         interaction.start_interaction()
         while not interaction.done():
-            # TODO: snippet keep age here
             utterance = interaction.next_utterance()
 
-            # TODO: make sure these are all of the correct age
             available_snippets = utterance.snippets()
             previous_query = utterance.previous_query()
 
@@ -269,7 +271,9 @@ class InteractionATISModel(ATISModel):
                 final_utterance_state[1][0], discourse_lstm_states)
 
             flat_sequence = []
-            num_utterances_to_keep = min(self.params.maximum_utterances, len(input_sequences))
+            num_utterances_to_keep = min(
+                self.params.maximum_utterances,
+                len(input_sequences))
             for utt in input_sequences[-num_utterances_to_keep:]:
                 flat_sequence.extend(utt)
 
@@ -279,11 +283,7 @@ class InteractionATISModel(ATISModel):
 
             snippets = None
             if self.params.use_snippets:
-                if self.params.previous_decoder_snippet_encoding:
-                    snippets = encode_snippets_with_states(available_snippets, decoder_states)
-                else:
-                    snippets = self._encode_snippets(
-                        previous_query, available_snippets)
+                snippets = self._encode_snippets(previous_query, available_snippets)
 
             results = self.predict_turn(final_utterance_state,
                                         utterance_states,
@@ -299,10 +299,11 @@ class InteractionATISModel(ATISModel):
                 :-1]
             flat_sequence = utterance.flatten_sequence(predicted_sequence)
 
-            if not syntax_restrict or sql_util.executable(flat_sequence,
-                                   username=self.params.database_username,
-                                   password=self.params.database_password,
-                                   timeout=self.params.database_timeout):
+            if not syntax_restrict or sql_util.executable(
+                    flat_sequence,
+                    username=self.params.database_username,
+                    password=self.params.database_password,
+                    timeout=self.params.database_timeout):
                 utterance.set_pred_query(
                     interaction.remove_snippets(predicted_sequence))
                 interaction.add_utterance(
@@ -347,7 +348,6 @@ class InteractionATISModel(ATISModel):
         for utterance in interaction.gold_utterances():
             input_sequence = utterance.input_sequence()
 
-            # TODO: make sure these are all of the correct age
             available_snippets = utterance.snippets()
             previous_query = utterance.previous_query()
 
@@ -364,7 +364,9 @@ class InteractionATISModel(ATISModel):
                 final_utterance_state[1][0], discourse_lstm_states, self.dropout)
 
             flat_sequence = []
-            num_utterances_to_keep = min(self.params.maximum_utterances, len(input_sequences))
+            num_utterances_to_keep = min(
+                self.params.maximum_utterances,
+                len(input_sequences))
             for utt in input_sequences[-num_utterances_to_keep:]:
                 flat_sequence.extend(utt)
 
@@ -375,7 +377,8 @@ class InteractionATISModel(ATISModel):
             snippets = None
             if self.params.use_snippets:
                 if self.params.previous_decoder_snippet_encoding:
-                    snippets = encode_snippets_with_states(available_snippets, decoder_states)
+                    snippets = encode_snippets_with_states(
+                        available_snippets, decoder_states)
                 else:
                     snippets = self._encode_snippets(
                         previous_query, available_snippets)
@@ -393,6 +396,11 @@ class InteractionATISModel(ATISModel):
         return predictions
 
     def interactive_prediction(self, anonymizer):
+        """Interactive prediction.
+
+        Inputs:
+            anonymizer (Anonymizer): Anonymizer to use for user's input.
+        """
         dy.renew_cg()
 
         snippet_bank = []
@@ -405,23 +413,26 @@ class InteractionATISModel(ATISModel):
 
         discourse_state, discourse_lstm_states = self._initialize_discourse_states()
 
-        utterance = "show me flights from new york to boston"# input("> ")
+        utterance = "show me flights from new york to boston"  # input("> ")
         while utterance.lower() not in END_OF_INTERACTION:
 
-            # First, need to normalize the utterance and get an anonymization dictionary.
+            # First, need to normalize the utterance and get an anonymization
+            # dictionary.
             tokenized_sequence = tokenizers.nl_tokenize(utterance)
 
-            available_snippets = [snippet for snippet in snippet_bank if snippet.index <= 1]
+            available_snippets = [
+                snippet for snippet in snippet_bank if snippet.index <= 1]
 
             sequence_to_use = tokenized_sequence
 
-            #TODO: implement date normalization
+            # TODO: implement date normalization
 
             if self.params.anonymize:
-                sequence_to_use = anonymizer.anonymize(tokenized_sequence,
-                                                       anonymization_dictionary,
-                                                       ANON_INPUT_KEY,
-                                                       add_new_anon_toks=True)
+                sequence_to_use = anonymizer.anonymize(
+                    tokenized_sequence,
+                    anonymization_dictionary,
+                    ANON_INPUT_KEY,
+                    add_new_anon_toks=True)
 
             # Now we encode the sequence
             final_utterance_state, utterance_states = self.utterance_encoder(
@@ -437,7 +448,9 @@ class InteractionATISModel(ATISModel):
 
             # Add positional embeddings
             flat_sequence = []
-            num_utterances_to_keep = min(self.params.maximum_utterances, len(input_sequences))
+            num_utterances_to_keep = min(
+                self.params.maximum_utterances,
+                len(input_sequences))
             for utt in input_sequences[-num_utterances_to_keep:]:
                 flat_sequence.extend(utt)
 
@@ -447,12 +460,7 @@ class InteractionATISModel(ATISModel):
 
             # Encode the snippets
             if self.params.use_snippets:
-                if self.params.previous_decoder_snippet_encoding:
-                    snippets = encode_snippets_with_states(available_snippets, decoder_states)
-                else:
-                    snippets = self._encode_snippets(
-                        previous_query, available_snippets)
-
+                snippets = self._encode_snippets(previous_query, available_snippets)
 
             # Predict a result
             results = self.predict_turn(final_utterance_state,
@@ -461,17 +469,13 @@ class InteractionATISModel(ATISModel):
                                         input_sequence=flat_sequence,
                                         snippets=snippets)
 
-            # Get the sequence, and show the de-anonymized and flattened versions
+            # Get the sequence, and show the de-anonymized and flattened
+            # versions
             predicted_sequence = results[0]
-
-            anonymized_sequence = utterance.remove_snippets(predicted_sequence)[:-1]
-            print(" ".join(anonymized_sequence))
-            flat_sequence = utterance.flatten_sequence(predicted_sequence)
-            print(" ".join(flat_sequence))
+            print(predicted_sequence)
 
             # Execute the query and show the results
 
-            # Update the available snippets, etc. 
-
+            # Update the available snippets, etc.
 
         utterance = input("> ")
