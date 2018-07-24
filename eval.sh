@@ -14,5 +14,6 @@ python3 run.py --raw_train_filename="../atis_data/data/resplit/processed/train_w
                --evaluate=1 \
                --evaluate_split="dev" \
                --use_predicted_queries=1 \
-               --save_file="save.dy" # You need to edit this.
+               --save_file="logs/save_0" # You need to edit this.
 
+python3 metric_averages.py "results_file.json" # You need to edit this.
