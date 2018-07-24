@@ -7,7 +7,7 @@ I will be slowly adding and documenting the code. Please open an issue if you ha
 
 If you want access to the data, code for preprocessing it, and the database to execute the queries, please email me (`suhr@cs.cornell.edu`). ATIS comprises LDC93S5, LDC94S19, and LDC95S26.
 
-The main file is `run.py`. You can rerun with my parameters by running `sh run.sh`. 
+The main file is `run.py`. You can train with my parameters by calling `train.sh`, and evaluate by calling `eval.sh` (but will need to provide the save file name, and you can edit this script so that it selects segments from gold queries instead, as well as evaluating on different splits of the data).  
 
 ## Prerequisites
-You need Crayon installed and running. See [this page](https://github.com/clab/dynet/tree/master/examples/tensorboard) for details. If you don't want to use Crayon, you can comment it out. 
+You need Crayon installed and running. See [this page](https://github.com/clab/dynet/tree/master/examples/tensorboard) for details. If you don't want to use Crayon, you can comment it out. You can use the provided scripts `remove_experiments.py` and `delete_all_experiments.py` in order to remove old experiments.

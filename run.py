@@ -141,7 +141,7 @@ def train(model, data, params):
         # Run a training step.
         if params.interaction_level:
             epoch_loss = train_epoch_with_interactions(
-                train_batches,
+                train_batches[:1],
                 params,
                 model,
                 randomize=not params.deterministic)
@@ -219,6 +219,7 @@ def train(model, data, params):
             last_save_file = os.path.join(params.logdir, "save_" + str(epochs))
             model.save(last_save_file)
 
+        break
         send_slack_message(
             username=params.logdir,
             message="Epoch " +
