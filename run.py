@@ -141,7 +141,7 @@ def train(model, data, params):
         # Run a training step.
         if params.interaction_level:
             epoch_loss = train_epoch_with_interactions(
-                train_batches[:1],
+                train_batches,
                 params,
                 model,
                 randomize=not params.deterministic)

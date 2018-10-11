@@ -17,19 +17,19 @@ def interpret_args():
     parser.add_argument(
         '--raw_train_filename',
         type=str,
-        default='../data_with_context/data/scensplit/resolveddates/scensplit_uwtime_train2.pkl')
+        default='../atis_data/data/resplit/processed/train_with_tables.pkl')
     parser.add_argument(
         '--raw_dev_filename',
         type=str,
-        default='../data_with_context/data/scensplit/resolveddates/scensplit_uwtime_dev.pkl')
+        default='../atis_data/data/resplit/processed/dev_with_tables.pkl')
     parser.add_argument(
         '--raw_validation_filename',
         type=str,
-        default='../data_with_context/data/scensplit/resolveddates/scensplit_uwtime_valid2.pkl')
+        default='../atis_data/data/resplit/processed/valid_with_tables.pkl')
     parser.add_argument(
         '--raw_test_filename',
         type=str,
-        default='../data_with_context/data/scensplit/resolveddates/scensplit_uwtime_test.pkl')
+        default='../atis_data/data/resplit/processed/test_with_tables.pkl')
     
     parser.add_argument('--data_directory', type=str, default='processed_data')
     
