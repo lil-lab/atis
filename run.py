@@ -219,7 +219,6 @@ def train(model, data, params):
             last_save_file = os.path.join(params.logdir, "save_" + str(epochs))
             model.save(last_save_file)
 
-        break
         send_slack_message(
             username=params.logdir,
             message="Epoch " +
