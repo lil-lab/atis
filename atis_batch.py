@@ -153,7 +153,7 @@ class PredUtteranceItem():
         return sql_util.fix_parentheses(
             self.interaction_item.expand_snippets(sequence))
 
-    def set_pred_query(self, query):
+    def set_predicted_query(self, query):
         self.anonymized_pred_query = query
 
 # Mocks an Interaction item, but allows for the parameters to be updated during
